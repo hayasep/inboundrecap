@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Backstock Table Filler</title>
+
+  <!-- Luckysheet -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/pluginsCss.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/plugins.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/css/luckysheet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/js/plugin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/luckysheet.umd.js"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    header {
+      padding: 12px;
+      border-bottom: 1px solid #e5e5e5;
+      display: grid;
+      grid-template-columns: 1fr 1fr 2fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+    header input { padding: 8px 10px; }
+    header button { padding: 10px 14px; cursor: pointer; }
+    #wrap { height: calc(100vh - 62px); }
+    #luckysheet { width: 100%; height: 100%; }
+    .msg { margin-left: 8px; font-size: 0.9em; color: #666; }
+  </style>
+</head>
+<body>
+  <header>
+    <input type="email" id="recipient" placeholder="Recipient email" value="{{ default_recipient }}" />
+    <input type="text" id="subject" placeholder="Email subject" value="Backstock Report" />
+    <input type="text" id="body" placeholder="Email body" value="Please see the attached report." />
+    <button id="downloadBtn">Download Filled</button>
+    <button id="emailBtn">Email Filled</button>
+    <div class="msg">Edit the grid below. Rows auto-grow to show all text.</div>
+  </header>
+
+  <div id="wrap"><div id="luckysheet"></div></div>
+
+  <script>
+    // --- Helpers for auto-growing rows in the web grid ---
+    function approxNeededLinesForRow(sheet, r) {
+      const cfg = sheet.config || {};
+      const collen = cfg.columnlen || {};
+      const defColW = (sheet.defaultColWidth ?? 73);
+      const baseH   = (sheet.defaultRowHeight ?? 20);
+
+      const rowArr = sheet.data?.[r] || [];
+      let maxLines = 1;
+
+      for (let c = 0; c < rowArr.length; c++) {
+        const cell = rowArr[c];
+        if (!cell || cell.v === undefined || cell.v === null || cell.v === "") continue;
+
+        // Enable wrapping so the UI breaks lines
+        cell.tb = 2; // 2 = wrap
+
+        // Rough chars-per-line from width (~7px per char)
+        const colW = (collen[c] ?? defColW);
+        const charsPerLine = Math.max(1, Math.floor(colW / 7));
+
+        // Count lines including manual breaks
+        const parts = String(cell.v).split(/\r?\n/);
+        let needed = 0;
+        for (const p of parts) needed += Math.max(1, Math.ceil(p.length / charsPerLine));
+        if (needed > maxLines) maxLines = needed;
+      }
+      return Math.max(1, maxLines) * baseH;
+    }
+
+    // Correct Luckysheet API: rowInfo is an OBJECT { rowIndex: height }
+    function setRowHeightSafe(row, height) {
+      try {
+        const map = {};
+        map[row] = height;
+        luckysheet.setRowHeight(map);
+      } catch (e) {
+        // Fallback: patch config then refresh
+        const sheet = luckysheet.getAllSheets()[0];
+        const cfg = sheet.config || (sheet.config = {});
+        cfg.rowlen = cfg.rowlen || {};
+        cfg.rowlen[row] = height;
+      }
+    }
+
+    function autoGrowRow(r) {
+      const sheet = luckysheet.getAllSheets()[0];
+      const newH = approxNeededLinesForRow(sheet, r);
+      setRowHeightSafe(r, newH);
+      if (luckysheet.refresh) luckysheet.refresh();
+    }
+
+    // --- Load and render from server JSON ---
+    async function loadFromJson() {
+      const resp = await fetch("/json", { cache: "no-store" });
+      if (!resp.ok) {
+        console.error("GET /json failed:", await resp.text());
+        alert("Failed to load data.");
+        return;
+      }
+      const exportJson = await resp.json();
+      const defaults = exportJson.defaults || {};
+
+      luckysheet.create({
+        container: "luckysheet",
+        showinfobar: false,
+        lang: "en",
+        allowEdit: true,
+        allowCopy: true,
+        data: exportJson.sheets,
+        title: (exportJson.info && exportJson.info.name) ? exportJson.info.name : "Sheet",
+        defaultRowHeight: (defaults.rowHeightPx ?? 20),
+        defaultColWidth: (defaults.colWidthPx ?? 73),
+
+        hook: {
+          // After the workbook is created, size rows in chunks to avoid blocking
+          workbookCreateAfter: function () {
+            const sheet = luckysheet.getAllSheets()[0];
+            const rows = sheet.data?.length || 0;
+            let r = 0;
+            function step() {
+              const batch = 50; // tune for smoothness
+              const map = {};
+              for (let i = 0; i < batch && r < rows; i++, r++) {
+                map[r] = approxNeededLinesForRow(sheet, r);
+              }
+              if (Object.keys(map).length) luckysheet.setRowHeight(map);
+              if (r < rows) {
+                requestAnimationFrame(step);
+              } else {
+                if (luckysheet.refresh) luckysheet.refresh();
+                setTimeout(() => { if (luckysheet.resize) luckysheet.resize(); }, 50);
+              }
+            }
+            requestAnimationFrame(step);
+          },
+
+          // Grow the edited row right after a change
+          cellUpdated: function (r, c, oldValue, newValue) {
+            autoGrowRow(r);
+          }
+        }
+      });
+    }
+
+    // --- Collect grid data to send to server ---
+    function extractCells() {
+      const all = luckysheet.getAllSheets?.();
+      if (!all || !all.length) return [];
+      const sheet = all[0];
+      const out = [];
+      const rows = sheet.data?.length || 0;
+      for (let r = 0; r < rows; r++) {
+        const rowArr = sheet.data[r];
+        if (!rowArr) continue;
+        for (let c = 0; c < rowArr.length; c++) {
+          const cell = rowArr[c];
+          const v = cell && (cell.v !== undefined && cell.v !== null) ? cell.v : "";
+          out.push({ r: r + 1, c: c + 1, v });
+        }
+      }
+      return out;
+    }
+
+    // --- Actions ---
+    async function downloadFilled() {
+      const cells = extractCells();
+      const resp = await fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cells })
+      });
+      if (!resp.ok) {
+        alert("Download failed: " + (await resp.text()));
+        return;
+      }
+      const blob = await resp.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "backstock-report-filled.xlsx";
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    async function emailFilled() {
+      const cells = extractCells();
+      const recipient = document.getElementById("recipient").value.trim();
+      const subject = document.getElementById("subject").value || "Backstock Report";
+      const body = document.getElementById("body").value || "Please see the attached report.";
+      const resp = await fetch("/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cells, recipient, subject, body })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        alert("Email failed: " + (data.error || (await resp.text())));
+        return;
+      }
+      alert(data.message || "Email sent.");
+    }
+
+    document.getElementById("downloadBtn").addEventListener("click", downloadFilled);
+    document.getElementById("emailBtn").addEventListener("click", emailFilled);
+
+    loadFromJson();
+  </script>
+</body>
+</html>
