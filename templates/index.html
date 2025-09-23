@@ -86,7 +86,7 @@
 <body>
   <header>
     <input type="email" id="recipient" placeholder="Recipient email" value="{{ default_recipient }}" />
-    <input type="text" id="subject" placeholder="Email subject" value="Backstock Report" />
+    <input type="text" id="subject" placeholder="Email subject" value="Inbound Recap" />
     <input type="text" id="body" placeholder="Email body" value="Please see the attached report." />
     <button id="downloadBtn">Download</button>
     <button id="emailBtn">Email</button>
@@ -279,7 +279,7 @@
       const cells = gatherCellsFromForms();
       const banner = getBannerPayload();
       const recipient = document.getElementById("recipient").value.trim();
-      const subject = document.getElementById("subject").value || "Backstock Report";
+      const subject = document.getElementById("subject").value || "Inbound Recap";
       const body    = document.getElementById("body").value || "Please see the attached report.";
       const resp = await fetch("/email", {
         method: "POST",
