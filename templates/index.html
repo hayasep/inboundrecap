@@ -1,203 +1,273 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Backstock Table Filler</title>
-
-  <!-- Luckysheet -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/pluginsCss.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/plugins.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/css/luckysheet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/js/plugin.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/luckysheet.umd.js"></script>
-
   <style>
-    html, body { height: 100%; margin: 0; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    header {
-      padding: 12px;
+    :root {
+      --pad: 10px;
+      --gap: 6px;
+      --radius: 8px;
+      --accent: #0d6efd;
+      --line: #ececec;
+      --muted: #666;
+    }
+    html, body { margin: 0; background: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    input, button, textarea { font-size: 16px; }
+
+    header{
+      padding: var(--pad);
       border-bottom: 1px solid #e5e5e5;
       display: grid;
       grid-template-columns: 1fr 1fr 2fr auto auto;
-      gap: 8px;
+      gap: var(--gap);
       align-items: center;
     }
-    header input { padding: 8px 10px; }
-    header button { padding: 10px 14px; cursor: pointer; }
-    #notes {
-      display: grid;
+    header input{
+      padding: 6px 8px; min-height: 34px;
+      border: 1px solid #c9c9c9; border-radius: var(--radius);
+    }
+    header button{
+      padding: 8px 10px; min-height: 34px; cursor:pointer;
+      border: 0; border-radius: var(--radius); color:#fff;
+    }
+    #downloadBtn{ background: var(--accent); }
+    #emailBtn{ background: #444; }
+    .msg{ grid-column: 1 / -1; color: var(--muted); font-size: .9rem; }
+
+    #notes{
+      padding: var(--pad);
+      border-bottom: 1px solid #eaeaea;
+      display: grid; gap: var(--gap);
       grid-template-columns: 1fr 1fr;
-      gap: 8px 12px;
-      padding: 10px 12px;
-      border-bottom: 1px solid #eee;
-      background: #fafafa;
       align-items: end;
+      background: #fafafa;
     }
-    #notes .row {
-      grid-column: 1 / -1;
-      font-size: 0.95rem;
+    #notes .row{ grid-column: 1 / -1; font-weight: 600; }
+    label{ display:block; margin-bottom: 2px; font-size: .9rem; color:#333; }
+    .field{ width: 100%; padding: 8px 9px; min-height: 34px; border:1px solid #c9c9c9; border-radius: var(--radius); }
+
+    .section{ padding: 8px var(--pad); }
+    .section h2{ margin: 0 0 6px; font-size: 1rem; font-weight: 700; }
+
+    .formgrid{
+      display: grid;
+      grid-template-columns: minmax(130px, 1fr) 84px 84px;
+      column-gap: 10px; row-gap: 4px;
+      align-items: center;
     }
-    #wrap { height: calc(100vh - 62px - 88px); } /* account for notes block height */
-    #luckysheet { width: 100%; height: 100%; }
-    .msg { margin-left: 8px; font-size: 0.9em; color: #666; }
-    label { font-size: 0.9rem; color: #333; display: block; margin-bottom: 4px; }
+    .formgrid.up { grid-template-columns: minmax(130px, 1fr) 84px; }
+
+    .th { font-weight: 600; color:#222; }
+    .muted { color: var(--muted); }
+    .qty{
+      width: 100%; padding: 6px 8px; min-height: 30px;
+      border:1px solid #c9c9c9; border-radius: 6px;
+    }
+    .divider{ grid-column: 1 / -1; height: 1px; background: var(--line); margin: 2px 0; }
+
+    /* notes box */
+    .notesbox{
+      width: 100%; padding: 8px 9px; min-height: 80px;
+      border:1px solid #c9c9c9; border-radius: var(--radius);
+      resize: vertical;
+    }
+
+    @media (max-width: 860px){
+      header{ grid-template-columns: 1fr; }
+      header input, header button{ width: 100%; }
+      #notes{ grid-template-columns: 1fr; }
+      .formgrid{ grid-template-columns: minmax(120px,1fr) 70px 70px; }
+      .formgrid.up{ grid-template-columns: minmax(120px,1fr) 70px; }
+    }
   </style>
 </head>
 <body>
-  <!-- Email controls -->
   <header>
     <input type="email" id="recipient" placeholder="Recipient email" value="{{ default_recipient }}" />
     <input type="text" id="subject" placeholder="Email subject" value="Backstock Report" />
     <input type="text" id="body" placeholder="Email body" value="Please see the attached report." />
     <button id="downloadBtn">Download</button>
     <button id="emailBtn">Email</button>
-    <div class="msg">Edit the grid below. Shift notes will be added to the export.</div>
+    <div class="msg">Fill the forms below. Export stays identical to your current Excel/email layout.</div>
   </header>
 
-  <!-- Shift notes inputs (fill-in-the-blanks) -->
+  <!-- Sentences -->
   <section id="notes">
-    <div class="row"><strong>Good morning team!</strong></div>
-
+    <div class="row">Good morning team!</div>
     <div>
-      <label>Last night we took a :</label>
-      <input id="lastNightItem" placeholder="e.g. Single HDC truck" />
+      <label>Last night we took a</label>
+      <input id="lastNightItem" class="field" placeholder="e.g. Single HDC truck" />
     </div>
     <div>
-      <label>… it was heavy in :</label>
-      <input id="lastNightHeavy" placeholder="e.g. Essentials" />
-    </div>
-
-    <div>
-      <label>Tonight we will be taking a :</label>
-      <input id="tonightItem" placeholder="e.g. Double RDC" />
+      <label>It was heavy in</label>
+      <input id="lastNightHeavy" class="field" placeholder="e.g. Essentials" />
     </div>
     <div>
-      <label>… it will be heavy in :</label>
-      <input id="tonightHeavy" placeholder="e.g. HBA and Style" />
+      <label>Tonight we will be taking a</label>
+      <input id="tonightItem" class="field" placeholder="e.g. Double RDC" />
+    </div>
+    <div>
+      <label>It will be heavy in</label>
+      <input id="tonightHeavy" class="field" placeholder="e.g. HBA and Style" />
     </div>
   </section>
 
-  <div id="wrap"><div id="luckysheet"></div></div>
+  <!-- Downstairs -->
+  <section class="section">
+    <h2>Downstairs — Push &amp; Back</h2>
+    <div class="formgrid" id="dsForm">
+      <div class="th muted">Item</div>
+      <div class="th">Push</div>
+      <div class="th">Back</div>
+      <div class="divider"></div>
+      <!-- rows injected here -->
+    </div>
+  </section>
+
+  <!-- Upstairs (Backstock -> COLUMN B) -->
+  <section class="section">
+    <h2>Upstairs — Backstock</h2>
+    <div class="formgrid up" id="upForm">
+      <div class="th muted">Item</div>
+      <div class="th">Back</div>
+      <div class="divider"></div>
+      <!-- rows injected here -->
+    </div>
+  </section>
+
+  <!-- Key notes / follow up -->
+  <section class="section">
+    <h2>Key Notes / Follow Up</h2>
+    <textarea id="keyNotes" class="notesbox" placeholder="Add any notes or follow-ups here..."></textarea>
+  </section>
 
   <script>
-    // --- Minimal row auto-grow (same as before; uses config map form) ---
-    function approxNeededLinesForRow(sheet, r) {
-      const cfg = sheet.config || {};
-      const collen = cfg.columnlen || {};
-      const defColW = (sheet.defaultColWidth ?? 73);
-      const baseH   = (sheet.defaultRowHeight ?? 20);
-      const rowArr = sheet.data?.[r] || [];
-      let maxLines = 1;
-      for (let c = 0; c < rowArr.length; c++) {
-        const cell = rowArr[c];
-        if (!cell || cell.v === undefined || cell.v === null || cell.v === "") continue;
-        cell.tb = 2; // wrap
-        const colW = (collen[c] ?? defColW);
-        const charsPerLine = Math.max(1, Math.floor(colW / 7));
-        const parts = String(cell.v).split(/\r?\n/);
-        let needed = 0;
-        for (const p of parts) needed += Math.max(1, Math.ceil(p.length / charsPerLine));
-        if (needed > maxLines) maxLines = needed;
-      }
-      return Math.max(1, maxLines) * baseH;
+    async function loadTemplate(){
+      const r = await fetch("/json", { cache:"no-store" });
+      if(!r.ok){ alert("Failed to load template."); return null; }
+      return r.json();
     }
-
-    function setRowHeightSafe(row, height) {
-      try {
-        const map = {}; map[row] = height;
-        luckysheet.setRowHeight(map);
-      } catch (e) {
-        const sheet = luckysheet.getAllSheets()[0];
-        const cfg = sheet.config || (sheet.config = {});
-        cfg.rowlen = cfg.rowlen || {};
-        cfg.rowlen[row] = height;
-      }
+    function textAt(sheet, r, c){
+      const cell = sheet?.data?.[r]?.[c];
+      return (cell && cell.v != null && cell.v !== "") ? String(cell.v) : "";
     }
-
-    function autoGrowRow(r) {
-      const sheet = luckysheet.getAllSheets()[0];
-      const newH = approxNeededLinesForRow(sheet, r);
-      setRowHeightSafe(r, newH);
-      if (luckysheet.refresh) luckysheet.refresh();
-    }
-
-    async function loadFromJson() {
-      const resp = await fetch("/json", { cache: "no-store" });
-      if (!resp.ok) {
-        console.error("GET /json failed:", await resp.text());
-        alert("Failed to load data.");
-        return;
-      }
-      const exportJson = await resp.json();
-      const defaults = exportJson.defaults || {};
-
-      luckysheet.create({
-        container: "luckysheet",
-        showinfobar: false,
-        lang: "en",
-        allowEdit: true,
-        allowCopy: true,
-        data: exportJson.sheets,
-        title: (exportJson.info && exportJson.info.name) ? exportJson.info.name : "Sheet",
-        defaultRowHeight: (defaults.rowHeightPx ?? 20),
-        defaultColWidth: (defaults.colWidthPx ?? 73),
-        hook: {
-          workbookCreateAfter: function () {
-            const sheet = luckysheet.getAllSheets()[0];
-            const rows = sheet.data?.length || 0;
-            const map = {};
-            for (let r = 0; r < rows; r++) {
-              map[r] = approxNeededLinesForRow(sheet, r);
-            }
-            luckysheet.setRowHeight(map);
-            if (luckysheet.refresh) luckysheet.refresh();
-            setTimeout(() => { if (luckysheet.resize) luckysheet.resize(); }, 50);
-          },
-          cellUpdated: function (r, c, oldValue, newValue) { autoGrowRow(r); }
+    function findHeaderRow(sheet, regex){
+      const rows = sheet?.data?.length || 0;
+      for(let r=0; r<rows; r++){
+        for(let c=0; c<6; c++){
+          const v = textAt(sheet, r, c);
+          if(regex.test(v)) return r;
         }
-      });
+      }
+      return -1;
     }
-
-    function extractCells() {
-      const all = luckysheet.getAllSheets?.();
-      if (!all || !all.length) return [];
-      const sheet = all[0];
+    function collectRows(sheet, startR, endR){
       const out = [];
-      const rows = sheet.data?.length || 0;
-      for (let r = 0; r < rows; r++) {
-        const rowArr = sheet.data[r];
-        if (!rowArr) continue;
-        for (let c = 0; c < rowArr.length; c++) {
-          const cell = rowArr[c];
-          const v = cell && (cell.v !== undefined && cell.v !== null) ? cell.v : "";
-          out.push({ r: r + 1, c: c + 1, v });
-        }
+      for(let r=startR; r<=endR; r++){
+        const name = textAt(sheet, r, 0); // column A
+        if(!name) continue;
+        const lower = name.trim().toLowerCase();
+        if(lower === 'department') continue;   // skip header row
+        out.push({ r, name });
       }
       return out;
     }
 
-    function getBannerPayload() {
+    function buildForms(sheet){
+      const rDown = findHeaderRow(sheet, /downstairs/i);
+      const rUp   = findHeaderRow(sheet, /upstairs/i);
+      const rNotes= findHeaderRow(sheet, /(key\s*notes|follow\s*up)/i);
+      const total = sheet?.data?.length || 60;
+
+      const dsStart = (rDown >= 0 ? rDown + 1 : 1);
+      const dsEnd   = (rUp   >= 0 ? rUp   - 1 : (rNotes >= 0 ? rNotes - 1 : total - 1));
+      const upStart = (rUp   >= 0 ? rUp   + 1 : dsEnd + 2);
+      const upEnd   = (rNotes>= 0 ? rNotes- 1 : total - 1);
+
+      const dsRows = collectRows(sheet, dsStart, dsEnd);
+      const upRows = collectRows(sheet, upStart, upEnd);
+
+      const dsForm = document.getElementById("dsForm");
+      const upForm = document.getElementById("upForm");
+
+      function addDsRow(row){
+        const label = document.createElement("div");
+        label.className = "muted";
+        label.textContent = row.name;
+
+        const push = document.createElement("input");
+        push.className = "qty"; push.placeholder = "";
+        push.dataset.r = String(row.r + 1); // 1-based
+        push.dataset.c = "2";               // B = Push
+
+        const back = document.createElement("input");
+        back.className = "qty"; back.placeholder = "";
+        back.dataset.r = String(row.r + 1);
+        back.dataset.c = "3";               // C = Back
+
+        dsForm.appendChild(label);
+        dsForm.appendChild(push);
+        dsForm.appendChild(back);
+      }
+
+      function addUpRow(row){
+        const label = document.createElement("div");
+        label.className = "muted";
+        label.textContent = row.name;
+
+        const back = document.createElement("input");
+        back.className = "qty"; back.placeholder = "";
+        back.dataset.r = String(row.r + 1);
+        back.dataset.c = "2";               // *** B = Backstock for Upstairs ***
+
+        upForm.appendChild(label);
+        upForm.appendChild(back);
+      }
+
+      dsRows.forEach(addDsRow);
+      upRows.forEach(addUpRow);
+    }
+
+    function gatherCellsFromForms(){
+      const inputs = document.querySelectorAll('input[data-r][data-c]');
+      const cells = [];
+      inputs.forEach(inp => {
+        const v = (inp.value ?? "").toString();
+        if (v !== "") {
+          const r = parseInt(inp.dataset.r, 10);
+          const c = parseInt(inp.dataset.c, 10);
+          if (Number.isInteger(r) && Number.isInteger(c)) {
+            cells.push({ r, c, v });
+          }
+        }
+      });
+      return cells;
+    }
+
+    function getBannerPayload(){
+      const notesVal = (document.getElementById("keyNotes")?.value || "");
       return {
         lastNightItem:  document.getElementById("lastNightItem").value || "",
         lastNightHeavy: document.getElementById("lastNightHeavy").value || "",
         tonightItem:    document.getElementById("tonightItem").value || "",
         tonightHeavy:   document.getElementById("tonightHeavy").value || "",
+        // send notes under common keys so the backend can pick it up
+        notes: notesVal,
+        keyNotes: notesVal
       };
     }
 
-    async function downloadFilled() {
-      const cells = extractCells();
+    async function downloadFilled(){
+      const cells = gatherCellsFromForms();
       const banner = getBannerPayload();
       const resp = await fetch("/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cells, banner })
       });
-      if (!resp.ok) {
-        alert("Download failed: " + (await resp.text()));
-        return;
-      }
+      if (!resp.ok) { alert("Download failed: " + (await resp.text())); return; }
       const blob = await resp.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -205,29 +275,31 @@
       document.body.appendChild(a); a.click(); a.remove();
     }
 
-    async function emailFilled() {
-      const cells = extractCells();
+    async function emailFilled(){
+      const cells = gatherCellsFromForms();
       const banner = getBannerPayload();
       const recipient = document.getElementById("recipient").value.trim();
       const subject = document.getElementById("subject").value || "Backstock Report";
-      const body = document.getElementById("body").value || "Please see the attached report.";
+      const body    = document.getElementById("body").value || "Please see the attached report.";
       const resp = await fetch("/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cells, banner, recipient, subject, body })
       });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.ok) {
-        alert("Email failed: " + (data.error || (await resp.text())));
-        return;
-      }
+      const data = await resp.json().catch(()=>({}));
+      if(!resp.ok || !data.ok){ alert("Email failed: " + (data.error || (await resp.text()))); return; }
       alert(data.message || "Email sent.");
     }
 
     document.getElementById("downloadBtn").addEventListener("click", downloadFilled);
     document.getElementById("emailBtn").addEventListener("click", emailFilled);
 
-    loadFromJson();
+    (async function init(){
+      const json = await loadTemplate();
+      if(!json){ return; }
+      const sheet = json?.sheets?.[0];
+      buildForms(sheet);
+    })();
   </script>
 </body>
 </html>

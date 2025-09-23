@@ -127,7 +127,8 @@ def wb_to_luckysheet_json(xlsx_path, sheet_name=""):
             uniform_row_px = _pt_to_px(drh_pt) if drh_pt else 20
 
     default_col_px = None
-    dcw_chars = getattr(ws.sheet_format, "defaultColWidth", None)
+    dcw_chars = getattr(ws.sheet_format, "defaultColWidth", None
+                        )
     if dcw_chars:
         default_col_px = int(round(float(dcw_chars) * 7))
     if DEFAULT_COL_WIDTH_PX:
@@ -307,10 +308,16 @@ def apply_cells_and_export(cells, banner=None):
     # Notes area (rows 42–45 merged, then rows 46–47 for sentences)
     hdr_row = find_keynotes_row(ws, fallback=41)
     collected = collect_existing_note_lines(ws, hdr_row, start_col=1, end_col=5, rows_below=4)
+
     start_c, end_c, notes_anchor_row, sent1_row, sent2_row = shape_notes_exact(ws, hdr_row, 1, 5)
 
+    # --- NEW: write the textarea value if provided; else keep collected ---
+    notes_text = (bn.get("notes") or bn.get("keyNotes") or bn.get("keynotes") or "").strip()
+    if not notes_text:
+        notes_text = collected
+
     anchor = ws.cell(notes_anchor_row, start_c)
-    anchor.value = collected
+    anchor.value = notes_text
     anchor.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     for r, text in ((sent1_row, bottom_lines[0]), (sent2_row, bottom_lines[1])):
