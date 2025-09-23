@@ -1,10 +1,12 @@
 services:
   - type: web
     name: backstock-filler-emailer
-    runtime: python
+    env: python                 # ← change from runtime: python
     plan: free
+    autoDeploy: true
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -w 2 -k gthread -t 120 app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /envcheck  # ← optional but handy
     envVars:
       - key: EXCEL_TEMPLATE_PATH
         value: backstock report.xlsx
@@ -15,11 +17,11 @@ services:
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USERNAME
-        sync: false      # fill in the Render dashboard
+        sync: false      # set in the Render dashboard
       - key: SMTP_PASSWORD
-        sync: false      # fill in the Render dashboard
+        sync: false      # set in the Render dashboard (Gmail App Password)
       - key: SENDER_EMAIL
-        sync: false      # fill in the Render dashboard
+        sync: false      # set in the Render dashboard
       - key: DEFAULT_RECIPIENT
         value: ""
       - key: UNIFORM_ROW_HEIGHT_PX
