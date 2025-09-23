@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: backstock-filler-emailer
+    name: inbound-recap
     env: python                 # ← change from runtime: python
     plan: free
     autoDeploy: true
