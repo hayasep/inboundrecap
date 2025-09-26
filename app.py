@@ -38,6 +38,34 @@ DEFAULT_COL_WIDTH_PX  = os.environ.get("DEFAULT_COL_WIDTH_PX")
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "change-me")
 
+
+
+@app.route("/smtpcheck")
+def smtpcheck():
+    import socket, json
+    host = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    ports = [int(os.getenv("SMTP_PORT", "587")), 465, 25]
+    results = {}
+    for p in ports:
+        try:
+            infos = socket.getaddrinfo(host, p, proto=socket.IPPROTO_TCP)
+            ok = False
+            err = None
+            for fam, _, _, _, addr in infos:
+                try:
+                    s = socket.socket(fam, socket.SOCK_STREAM)
+                    s.settimeout(6)
+                    s.connect(addr)
+                    s.close()
+                    ok = True
+                    break
+                except Exception as e:
+                    err = str(e)
+            results[str(p)] = {"ok": ok, "err": err}
+        except Exception as e:
+            results[str(p)] = {"ok": False, "err": str(e)}
+    return results
+
 # ---------------- Helpers ----------------
 def _pt_to_px(pt: float) -> int:
     return int(round(float(pt) * (96.0 / 72.0)))
