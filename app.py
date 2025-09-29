@@ -3,6 +3,8 @@ import io
 import json
 import math
 import smtplib
+import base64
+import requests
 from email.message import EmailMessage
 from datetime import datetime
 from pathlib import Path
@@ -39,10 +41,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "change-me")
 
 
-
 @app.route("/smtpcheck")
 def smtpcheck():
-    import socket, json
+    import socket, json as _json
     host = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     ports = [int(os.getenv("SMTP_PORT", "587")), 465, 25]
     results = {}
@@ -65,6 +66,7 @@ def smtpcheck():
         except Exception as e:
             results[str(p)] = {"ok": False, "err": str(e)}
     return results
+
 
 # ---------------- Helpers ----------------
 def _pt_to_px(pt: float) -> int:
@@ -155,8 +157,7 @@ def wb_to_luckysheet_json(xlsx_path, sheet_name=""):
             uniform_row_px = _pt_to_px(drh_pt) if drh_pt else 20
 
     default_col_px = None
-    dcw_chars = getattr(ws.sheet_format, "defaultColWidth", None
-                        )
+    dcw_chars = getattr(ws.sheet_format, "defaultColWidth", None)
     if dcw_chars:
         default_col_px = int(round(float(dcw_chars) * 7))
     if DEFAULT_COL_WIDTH_PX:
@@ -339,7 +340,7 @@ def apply_cells_and_export(cells, banner=None):
 
     start_c, end_c, notes_anchor_row, sent1_row, sent2_row = shape_notes_exact(ws, hdr_row, 1, 5)
 
-    # --- NEW: write the textarea value if provided; else keep collected ---
+    # Write textarea value if provided; else keep collected
     notes_text = (bn.get("notes") or bn.get("keyNotes") or bn.get("keynotes") or "").strip()
     if not notes_text:
         notes_text = collected
@@ -419,6 +420,31 @@ def send_via_smtp(file_bytes, filename, recipient, subject, body):
         server.login(SMTP_USERNAME, SMTP_PASSWORD)
         server.send_message(msg)
 
+def send_via_gapps_script(file_bytes, filename, recipient, subject, body):
+    """Send using your Google Apps Script Web App (uses your Gmail account)."""
+    url = os.getenv("GAS_WEBAPP_URL")
+    token = os.getenv("GAS_SHARED_SECRET", "")
+    if not url:
+        raise RuntimeError("GAS_WEBAPP_URL not set")
+
+    payload = {
+        "token": token,
+        "to": recipient,
+        "subject": subject or "Backstock Report",
+        "body": body or "Please see the attached report.",
+        "filename": filename,
+        "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "fileBase64": base64.b64encode(file_bytes).decode(),
+    }
+
+    r = requests.post(url, json=payload, timeout=30)
+    try:
+        data = r.json()
+    except Exception:
+        raise RuntimeError(f"Apps Script HTTP error {r.status_code}: {r.text[:200]}")
+    if not data.get("ok"):
+        raise RuntimeError(f"Apps Script send failed: {data.get('error')}")
+
 # ---------------- Routes ----------------
 @app.route("/", methods=["GET"])
 def home():
@@ -462,7 +488,13 @@ def email():
     body = payload.get("body") or "Please see the attached report."
     try:
         out, out_filename = apply_cells_and_export(cells, banner=banner)
-        send_via_smtp(out.getvalue(), out_filename, recipient, subject, body)
+
+        # Use Google Apps Script if enabled; else fallback to SMTP
+        if os.getenv("USE_GAS", "").lower() in ("1", "true", "yes"):
+            send_via_gapps_script(out.getvalue(), out_filename, recipient, subject, body)
+        else:
+            send_via_smtp(out.getvalue(), out_filename, recipient, subject, body)
+
         return jsonify({"ok": True, "message": f"Email sent to {recipient}."})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
